@@ -12,6 +12,7 @@ const Order = () => {
   const [phoneError, setPhoneError] = useState('')
   const [addressError, setAddressError] = useState('')
   const [successOrderItems, setSuccessOrderItems] = useState([])
+  const [error, setError] = useState('')
 
   // Load order items from localStorage on component mount
   useEffect(() => {
@@ -133,228 +134,271 @@ const Order = () => {
   }
 
   // Function to confirm order
-  const confirmOrder = () => {
-    if (orderItems.length === 0) {
-      alert('Please add items to your order first!')
+  const confirmOrder = async () => {
+    if (!validateDeliveryInfo()) {
       return
     }
 
-    // Store current order items for success modal
-    setSuccessOrderItems([...orderItems])
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:5000'
+      const finalTotal = calculateTotal(orderItems)
 
-    // Save current order to localStorage
-    const currentOrder = {
-      items: [...orderItems],
-      timestamp: new Date().toLocaleString(),
-      total: finalTotal,
-      orderNumber: JSON.parse(localStorage.getItem('orders') || '[]').length + 1,
-      deliveryInfo: { ...deliveryInfo }
+      // Create order object
+      const currentOrder = {
+        items: [...orderItems],
+        timestamp: new Date().toLocaleString(),
+        total: finalTotal,
+        deliveryInfo: { ...deliveryInfo }
+      }
+
+      // Send order to server
+      const response = await fetch(`${baseUrl}/order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(currentOrder),
+      }).catch(error => {
+        throw new Error('Unable to connect to the server. Please check if the server is running.')
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to submit order')
+      }
+
+      // Clear order items from localStorage
+      localStorage.removeItem('orderItems')
+      setOrderItems([])
+      setDeliveryInfo({ address: '', phone: '' })
+      setError('')
+      setShowDeliveryForm(false)
+      setShowSuccess(true)
+    } catch (error) {
+      console.error('Error submitting order:', error)
+      setError(error.message || 'Failed to submit order. Please try again.')
+      // Keep the delivery form open if there's an error
+      setShowDeliveryForm(true)
+    }
+  }
+
+  const validateDeliveryInfo = () => {
+    if (orderItems.length === 0) {
+      alert('Please add items to your order first!')
+      return false
     }
 
-    // Get existing orders and add new order
-    const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]')
-    const updatedOrders = [currentOrder, ...existingOrders]
-    localStorage.setItem('orders', JSON.stringify(updatedOrders))
-    
-    // Dispatch event for new order with the updated orders data
-    const event = new CustomEvent('newOrder', { detail: updatedOrders })
-    window.dispatchEvent(event)
-    
-    // Clear current order and delivery info
-    setOrderItems([])
-    localStorage.removeItem('orderItems') // Clear from localStorage
-    setDeliveryInfo({ address: '', phone: '' })
-    setShowDeliveryForm(false)
-    
-    // Show success notification
-    setShowSuccess(true)
+    // Validate phone number
+    if (deliveryInfo.phone.length !== 10) {
+      setPhoneError('Phone number must be exactly 10 digits')
+      return false
+    }
+
+    // Validate address
+    const trimmedAddress = deliveryInfo.address.trim()
+    if (trimmedAddress.length === 0) {
+      setAddressError('Address is required')
+      return false
+    }
+
+    return true
   }
 
   return (
-    <section id="order" className="min-h-screen bg-white min-w-full">
-      <div className="container mx-auto px-4 py-16">
-        <h1 className="text-4xl font-bold text-center mb-12 text-gray-900">Your Order</h1>
+    <div id="order" className="min-h-screen min-w-full bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Your Order</h1>
+          <p className="mt-2 text-gray-600">Review and confirm your order</p>
+        </div>
 
-        <div className="space-y-8">
-          {/* Current Order */}
-          <div>
-            <h2 className="text-2xl font-semibold mb-6 text-gray-900">Current Order</h2>
-            {orderItems.length === 0 ? (
-              <div className="text-center text-gray-600 bg-gray-50 p-8 rounded-lg">
-                <p className="mb-4">Your current order is empty</p>
-                <p>Please select items from the menu to start ordering.</p>
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {/* Order Items */}
-                <div className="overflow-x-auto">
-                  <table className="w-full table-auto text-left border border-gray-200">
-                    <thead className="bg-gray-100 text-gray-700">
-                      <tr>
-                        <th className="py-2 px-4 border-b">Item</th>
-                        <th className="py-2 px-4 border-b">Description</th>
-                        <th className="py-2 px-4 border-b">Quantity</th>
-                        <th className="py-2 px-4 border-b">Price</th>
-                        <th className="py-2 px-4 border-b">Total</th>
-                        <th className="py-2 px-4 border-b">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orderItems.map((item, index) => (
-                        <tr key={index} className="border-t">
-                          <td className="py-2 px-4 font-medium text-gray-900">{item.name}</td>
-                          <td className="py-2 px-4 text-sm text-gray-600">{item.description}</td>
-                          <td className="py-2 px-4">
-                            <div className="flex items-center space-x-2">
-                              <button onClick={() => decreaseQuantity(item.name)} className="px-2 py-1 rounded bg-gray-300 text-black hover:bg-gray-400">-</button>
-                              <span className="font-medium text-gray-900">{item.quantity}</span>
-                              <button onClick={() => increaseQuantity(item.name)} className="px-2 py-1 rounded bg-gray-800 text-white hover:bg-gray-900">+</button>
-                            </div>
-                          </td>
-                          <td className="py-2 px-4">${parseFloat(item.price.replace('$', '')).toFixed(2)}</td>
-                          <td className="py-2 px-4 font-medium text-gray-900">${(parseFloat(item.price.replace('$', '')) * item.quantity).toFixed(2)}</td>
-                          <td className="py-2 px-4">
-                            <button onClick={() => removeFromOrder(item.name)} className="text-red-600 hover:text-red-800">Remove</button>
-                          </td>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Order Items (Stacked cards for mobile) */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="p-6">
+                <h2 className="text-2xl font-semibold mb-4 text-gray-900">Order Items</h2>
+                {orderItems.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">No items in your order</p>
+                ) : (
+                  <div className="block lg:hidden">
+                    {orderItems.map((item, index) => (
+                      <div key={index} className="bg-gray-100 p-4 mb-4 rounded-lg shadow-sm">
+                        <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
+                        <p className="text-sm text-gray-900">Price: {item.price}</p>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <button
+                            onClick={() => decreaseQuantity(item.name)}
+                            className="px-2 py-1 bg-gray-800 text-white rounded-md hover:bg-gray-900"
+                          >
+                            -
+                          </button>
+                          <span className="text-sm font-medium text-gray-900">{item.quantity}</span>
+                          <button
+                            onClick={() => increaseQuantity(item.name)}
+                            className="px-2 py-1 bg-gray-800 text-white rounded-md hover:bg-gray-900"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <p className="text-sm font-semibold mt-2 text-gray-900">Total: ${(parseFloat(item.price.replace('$', '')) * item.quantity).toFixed(2)}</p>
+                        <button
+                          onClick={() => removeFromOrder(item.name)}
+                          className="text-red-600 hover:text-red-900 mt-2"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Table view for larger screens */}
+                <div className="hidden lg:block">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {orderItems.map((item, index) => (
+                          <tr key={index}>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.name}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.price}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              <div className="flex items-center space-x-2">
+                                <button
+                                  onClick={() => decreaseQuantity(item.name)}
+                                  className="px-2 py-1 bg-gray-800 text-white rounded-md hover:bg-gray-900"
+                                >
+                                  -
+                                </button>
+                                <span className="font-medium">{item.quantity}</span>
+                                <button
+                                  onClick={() => increaseQuantity(item.name)}
+                                  className="px-2 py-1 bg-gray-800 text-white rounded-md hover:bg-gray-900"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              ${(parseFloat(item.price.replace('$', '')) * item.quantity).toFixed(2)}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              <button
+                                onClick={() => removeFromOrder(item.name)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+              </div>
+            </div>
+          </div>
 
-                {/* Order Summary */}
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-2xl font-semibold mb-4 text-gray-900">Order Summary</h2>
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-gray-700">Subtotal</span>
-                    <span className="font-semibold text-gray-900">${totalPrice.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-gray-700">Delivery Fee</span>
-                    <span className="font-semibold text-gray-900">${deliveryFee.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-6">
-                    <span className="text-gray-700">Total</span>
+          {/* Order Summary */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-lg p-6 sticky top-4">
+              <h2 className="text-2xl font-semibold mb-4 text-gray-900">Order Summary</h2>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700">Subtotal</span>
+                  <span className="font-semibold text-gray-900">${totalPrice.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700">Delivery Fee</span>
+                  <span className="font-semibold text-gray-900">${deliveryFee.toFixed(2)}</span>
+                </div>
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700 font-semibold">Total</span>
                     <span className="font-semibold text-gray-900">${finalTotal.toFixed(2)}</span>
                   </div>
-                  <button
-                    className={`w-full py-3 rounded-lg transition-colors ${
-                      orderItems.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-gray-800 text-white hover:bg-gray-900'
-                    }`}
-                    onClick={() => setShowDeliveryForm(true)}
-                    disabled={orderItems.length === 0}
-                  >
-                    Proceed to Delivery
-                  </button>
                 </div>
+                <button
+                  className={`w-full py-3 rounded-lg transition-colors ${
+                    orderItems.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-gray-800 text-white hover:bg-gray-900'
+                  }`}
+                  onClick={() => setShowDeliveryForm(true)}
+                  disabled={orderItems.length === 0}
+                >
+                  Proceed to Checkout
+                </button>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
-        {/* Delivery Information Form */}
+        {/* Delivery Information Form (Modal) */}
         {showDeliveryForm && (
-          <div className="fixed inset-0 flex items-center justify-center z-50">
-            <div className="bg-black/50 backdrop-blur-sm w-full h-full flex items-center justify-center">
-              <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
-                <h3 className="text-2xl font-bold mb-6 text-gray-900">Delivery Information</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
+            <div className="bg-white p-6 rounded-lg max-w-sm w-full mx-auto overflow-y-auto max-h-[90vh]">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Enter Delivery Information</h3>
+              {error && (
+                <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                  {error}
+                </div>
+              )}
+              <form onSubmit={handleSubmit}>
+                <div className="space-y-4">
                   <div>
-                    <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-                      Delivery Address
-                    </label>
-                    <textarea
-                      id="address"
-                      value={deliveryInfo.address}
-                      onChange={handleAddressChange}
-                      className={`w-full px-4 py-2 border ${addressError ? 'border-red-500' : 'border-gray-300'} rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 placeholder-gray-500`}
-                      rows="3"
-                      placeholder="Enter your complete delivery address"
-                      required
-                    />
-                    {addressError && (
-                      <p className="mt-1 text-sm text-red-600">{addressError}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
-                    </label>
+                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone Number</label>
                     <input
-                      type="tel"
+                      type="text"
                       id="phone"
+                      className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
                       value={deliveryInfo.phone}
                       onChange={handlePhoneChange}
-                      className={`w-full px-4 py-2 border ${phoneError ? 'border-red-500' : 'border-gray-300'} rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500`}
-                      placeholder="Enter 10-digit phone number"
-                      required
+                      maxLength="10"
                     />
-                    {phoneError && (
-                      <p className="mt-1 text-sm text-red-600">{phoneError}</p>
-                    )}
+                    {phoneError && <p className="text-red-500 text-sm">{phoneError}</p>}
                   </div>
-                  <div className="flex justify-end space-x-4 mt-6">
-                    <button
-                      type="button"
-                      onClick={() => setShowDeliveryForm(false)}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-md hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                    >
-                      Confirm Order
-                    </button>
+                  <div>
+                    <label htmlFor="address" className="block text-sm font-medium text-gray-700">Delivery Address</label>
+                    <input
+                      type="text"
+                      id="address"
+                      className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+                      value={deliveryInfo.address}
+                      onChange={handleAddressChange}
+                    />
+                    {addressError && <p className="text-red-500 text-sm">{addressError}</p>}
                   </div>
-                </form>
-              </div>
+                </div>
+                <div className="mt-6">
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-gray-800 hover:bg-gray-900 text-white rounded-lg transition-colors"
+                  >
+                    Confirm Order
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
 
-        {/* Success Notification */}
+        {/* Success Modal */}
         {showSuccess && (
-          <div 
-            className="fixed inset-0 flex items-center justify-center z-50"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setShowSuccess(false)
-              }
-            }}
-          >
-            <div className="bg-black/50 backdrop-blur-sm w-full h-full flex items-center justify-center">
-              <div className="bg-white p-8 rounded-lg shadow-xl text-center max-w-md w-full">
-                <svg className="w-16 h-16 mx-auto text-green-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                </svg>
-                <h3 className="text-2xl font-bold mb-2 text-gray-900">Order Placed Successfully!</h3>
-                <p className="text-gray-900 mb-4 font-medium">Your order will be delivered shortly.</p>
-                <div className="space-y-2 mb-6">
-                  {successOrderItems.map((item, index) => (
-                    <div key={index} className="flex justify-between items-center text-sm">
-                      <span className="text-gray-900">{item.name} x {item.quantity}</span>
-                      <span className="text-gray-900 font-medium">${(parseFloat(item.price.replace('$', '')) * item.quantity).toFixed(2)}</span>
-                    </div>
-                  ))}
-                  <div className="border-t pt-2 mt-2">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-700">Subtotal</span>
-                      <span className="text-gray-900">${calculateTotal(successOrderItems).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-700">Delivery Fee</span>
-                      <span className="text-gray-900">${deliveryFee.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center font-semibold text-gray-900">
-                      <span>Total</span>
-                      <span>${(calculateTotal(successOrderItems) + deliveryFee).toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
+          <div className="fixed inset-0 flex justify-center items-center text-gray-900 bg-black bg-opacity-50">
+            <div className="bg-white p-6 rounded-lg max-w-sm w-full mx-auto overflow-y-auto max-h-[90vh]">
+              <h3 className="text-xl font-semibold mb-4">Order Confirmed!</h3>
+              <p className="text-lg">Thank you for your purchase. Your order is on its way!</p>
+              <div className="mt-4 space-y-3">
                 <button 
-                  className="bg-gray-800 text-white px-6 py-2 rounded-lg hover:bg-gray-900 transition-colors"
+                  className="w-full py-3 bg-gray-800 hover:bg-gray-900 text-white rounded-lg transition-colors"
                   onClick={() => {
                     setShowSuccess(false)
                     router.push('/#menu')
@@ -367,7 +411,7 @@ const Order = () => {
           </div>
         )}
       </div>
-    </section>
+    </div>
   )
 }
 

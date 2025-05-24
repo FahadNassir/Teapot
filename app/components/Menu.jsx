@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const Menu = () => {
   const router = useRouter();
@@ -10,14 +11,14 @@ const Menu = () => {
 
   const drinks = [
     {
-      name: "Passion Fruit Smoothie",
+      name: "Passion juice",
       price: "$5.99",
       description: "Fresh passion fruit blended with ice and honey",
       image: "/images/passion.jpg",
       category: "Smoothies"
     },
     {
-      name: "Mango Lassi",
+      name: "Mango Juice",
       price: "$4.99",
       description: "Creamy mango smoothie with a hint of cardamom",
       image: "/images/mango.jpg",
@@ -31,7 +32,7 @@ const Menu = () => {
       category: "Juices"
     },
     {
-      name: "Apple Cider",
+      name: "Apple juice",
       price: "$4.99",
       description: "Fresh apple juice with cinnamon and ginger",
       image: "/images/apple.jpg",
@@ -104,14 +105,16 @@ const Menu = () => {
   return (
     <section id="menu" className="min-h-screen bg-white min-w-full">
       <div className="container mx-auto px-4 py-16">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-center mb-12 text-gray-900">Our Menu</h1>
-          <button
-            onClick={() => router.push('/#order')}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
-          >
-            Confirm Order
-          </button>
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-900">Menu</h2>
+          <div className="flex items-center space-x-4">
+            <Link href="/#order" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
+              </svg>
+              View Order
+            </Link>
+          </div>
         </div>
 
         {/* Tabs */}

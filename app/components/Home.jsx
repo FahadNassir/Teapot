@@ -28,7 +28,7 @@ const Home = () => {
             alt="Teapot Logo"
             width={100}
             height={100}
-            className="rounded-full shadow-lg cursor-pointer hover:shadow-xl transition-shadow duration-300"
+            className="w-14 h-14 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-full shadow-lg cursor-pointer hover:shadow-xl transition-shadow duration-300"
           />
         </Link>
       </div>

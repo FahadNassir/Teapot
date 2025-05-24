@@ -1,121 +1,114 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 const OrderManagement = () => {
-  const [orders, setOrders] = useState([])
   const router = useRouter()
+  const [orders, setOrders] = useState([])
+  const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:5000'
 
-  // Function to load orders from localStorage
-  const loadOrders = () => {
-    const storedOrders = JSON.parse(localStorage.getItem('orders') || '[]')
-    const ordersWithIds = storedOrders.map((order, index) => ({
-      ...order,
-      id: order.id || `order-${Date.now()}-${index}`,
-      total: order.total || 0
-    })).reverse()
-    setOrders(ordersWithIds)
+  // Function to load orders from server
+  const loadOrders = async () => {
+    try {
+      const response = await fetch(`${baseUrl}/orders`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch orders')
+      }
+      const data = await response.json()
+      setOrders(data)
+    } catch (error) {
+      console.error('Error loading orders:', error)
+    }
   }
 
+  // Load orders on component mount and set up polling
   useEffect(() => {
-    // Check if user is logged in
-    const isLoggedIn = localStorage.getItem('isLoggedIn')
-    if (!isLoggedIn) {
-      router.push('/user/login')
-      return
-    }
-
-    // Load initial orders
+    // Initial load
     loadOrders()
 
-    // Add event listener for new orders
-    const handleNewOrder = (event) => {
-      // If the event has detail (from CustomEvent), use it directly
-      if (event.detail) {
-        const ordersWithIds = event.detail.map((order, index) => ({
-          ...order,
-          id: order.id || `order-${Date.now()}-${index}`,
-          total: order.total || 0
-        })).reverse()
-        setOrders(ordersWithIds)
-      } else {
-        // Otherwise, reload from localStorage
-        loadOrders()
+    // Set up polling every 3 seconds
+    const pollInterval = setInterval(() => {
+      loadOrders()
+    }, 3000)
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(pollInterval)
+  }, [])
+
+  const handleSent = async (order) => {
+    try {
+      const response = await fetch(`${baseUrl}/order/${order.deliveryInfo.phone}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete order')
       }
+
+      // Update local state to remove the deleted order
+      setOrders(prevOrders => prevOrders.filter(o => o.deliveryInfo.phone !== order.deliveryInfo.phone))
+    } catch (error) {
+      console.error('Error deleting order:', error)
+      alert('Failed to delete order. Please try again.')
     }
-
-    // Add event listener for storage changes
-    const handleStorageChange = (e) => {
-      if (e.key === 'orders') {
-        loadOrders()
-      }
-    }
-
-    window.addEventListener('newOrder', handleNewOrder)
-    window.addEventListener('storage', handleStorageChange)
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('newOrder', handleNewOrder)
-      window.removeEventListener('storage', handleStorageChange)
-    }
-  }, [router])
-
-  const handleDelivered = (orderId) => {
-    // Remove the delivered order
-    const updatedOrders = orders.filter(order => order.id !== orderId)
-    setOrders(updatedOrders)
-    localStorage.setItem('orders', JSON.stringify(updatedOrders))
-    
-    // Dispatch event to notify other components
-    const event = new CustomEvent('newOrder', { detail: updatedOrders })
-    window.dispatchEvent(event)
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Order Management</h1>
-        
-        <div className="space-y-6">
-          {orders.map((order, index) => (
-            <div 
-              key={`${order.id}-${index}`} 
-              className="bg-white rounded-lg shadow-xl hover:shadow-2xl transition-shadow duration-300 overflow-hidden"
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-3">
-                    <div className="text-sm text-gray-900">
-                      <p className="font-semibold text-base mb-2">Delivery Information:</p>
-                      <p className="mb-1">Address: {order.deliveryInfo?.address || 'No address provided'}</p>
-                      <p>Phone: {order.deliveryInfo?.phone || 'No phone provided'}</p>
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
+          <p className="mt-2 text-gray-600">View and manage all orders</p>
+        </div>
+
+        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+          <div className="p-6">
+            {orders.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">No orders found</p>
+            ) : (
+              <div className="space-y-6">
+                {orders.map((order, index) => (
+                  <div key={index} className="border-b border-gray-400 pb-6 last:border-b-0">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <p className="text-sm text-gray-500">{order.timestamp}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-semibold text-gray-900">Total: ${order.total.toFixed(2)}</p>
+                      </div>
                     </div>
-                    <div className="border-t border-gray-200 pt-3">
-                      <p className="text-sm text-gray-900">
-                        {order.items.map(item => `${item.name} (${item.quantity})`).join(', ')}
-                      </p>
-                      <p className="text-sm font-medium text-gray-900 mt-2">
-                        Total: ${(order.total || 0).toFixed(2)}
-                      </p>
+
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Delivery Information:</h4>
+                      <p className="text-sm text-gray-600">Address: {order.deliveryInfo.address}</p>
+                      <p className="text-sm text-gray-600">Phone: {order.deliveryInfo.phone}</p>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Order Items:</h4>
+                      <div className="space-y-2">
+                        {order.items.map((item, itemIndex) => (
+                          <div key={itemIndex} className="flex justify-between text-sm">
+                            <span className="text-gray-600">{item.name} x {item.quantity}</span>
+                            <span className="text-gray-900">${(parseFloat(item.price.replace('$', '')) * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={() => handleSent(order)}
+                        className="px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors"
+                      >
+                        Sent
+                      </button>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDelivered(order.id)}
-                    className="ml-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
-                  >
-                    Delivered
-                  </button>
-                </div>
+                ))}
               </div>
-            </div>
-          ))}
-          {orders.length === 0 && (
-            <div className="bg-white rounded-lg shadow-lg p-6 text-center text-gray-500">
-              No orders to display
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

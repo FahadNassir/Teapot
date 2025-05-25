@@ -140,7 +140,7 @@ const Order = () => {
     }
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:5000'
+      const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://teapotserver.onrender.com'
       const finalTotal = calculateTotal(orderItems)
 
       // Create order object

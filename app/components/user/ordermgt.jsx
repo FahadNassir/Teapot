@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 const OrderManagement = () => {
   const router = useRouter()
   const [orders, setOrders] = useState([])
-  const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:5000'
+  const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://teapotserver.onrender.com'
 
   // Function to load orders from server
   const loadOrders = async () => {

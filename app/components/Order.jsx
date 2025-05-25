@@ -358,7 +358,7 @@ const Order = () => {
                     <input
                       type="text"
                       id="phone"
-                      className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+                      className="mt-1 block w-full p-2 border border-gray-300 text-gray-900 rounded-md"
                       value={deliveryInfo.phone}
                       onChange={handlePhoneChange}
                       maxLength="10"
@@ -370,7 +370,7 @@ const Order = () => {
                     <input
                       type="text"
                       id="address"
-                      className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+                      className="mt-1 block w-full p-2 border text-gray-900 border-gray-300 rounded-md"
                       value={deliveryInfo.address}
                       onChange={handleAddressChange}
                     />
